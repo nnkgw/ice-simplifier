@@ -1,0 +1,3 @@
+[submodule "externals/intrinsic-simplification"]
+	path = externals/intrinsic-simplification
+	url = https://github.com/HTDerekLiu/intrinsic-simplification.git
