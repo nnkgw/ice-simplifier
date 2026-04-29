@@ -1,3 +1,9 @@
+# build status
+
+[![windows](https://github.com/nnkgw/ice-simplifier/workflows/windows/badge.svg)](https://github.com/nnkgw/ice-simplifier/actions?query=workflow%3Awindows)
+[![macos](https://github.com/nnkgw/ice-simplifier/workflows/macos/badge.svg)](https://github.com/nnkgw/ice-simplifier/actions?query=workflow%3Amacos)
+[![ubuntu](https://github.com/nnkgw/ice-simplifier/workflows/ubuntu/badge.svg)](https://github.com/nnkgw/ice-simplifier/actions?query=workflow%3Aubuntu)
+
 # ice-simplifier
 
 `.obj` ファイルを読み込んで intrinsic simplification で粗視化し、`.obj` ファイルとして書き出すコマンドラインアプリケーション。
