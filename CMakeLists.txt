@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 SET(CMAKE_BUILD_TYPE Release)
 project(ice-simplifier)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${PROJECT_SOURCE_DIR}/bin)
 
 # libigl uses FetchContent_Populate() which is deprecated in CMake 4.x (CMP0169)
 cmake_policy(SET CMP0169 OLD)

@@ -6,6 +6,12 @@
 
 ---
 
+## Download
+
+- [ice-simplifier.exe (windows)](https://raw.githubusercontent.com/nnkgw/ice-simplifier/main/bin/ice-simplifier.exe)
+
+---
+
 ## ビルド
 
 ```bash
