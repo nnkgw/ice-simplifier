@@ -6,7 +6,7 @@
 
 # ice-simplifier
 
-`.obj` ファイルを読み込んで intrinsic simplification で粗視化し、`.obj` ファイルとして書き出すコマンドラインアプリケーション。
+`.obj` ファイルを読み込んで intrinsic simplification で粗視化し、coarse メッシュ（`.obj`）と coarse/fine 頂点対応ファイル（`.cfmap`）を書き出すコマンドラインアプリケーション。
 
 [intrinsic-simplification](https://github.com/HTDerekLiu/intrinsic-simplification) のコアライブラリを使用。可視化ライブラリ（polyscope）を含まない最小構成。
 
@@ -60,7 +60,10 @@ Loaded: 2930 vertices, 5856 faces
 Coarsening: removing 2730 vertices...
 Coarsened: 200 vertices, 396 faces
 Written: spot_coarse.obj
+Written: spot_coarse.cfmap
 ```
+
+`output.obj` と同名の `.cfmap` ファイルが常に生成される。
 
 ---
 
@@ -72,6 +75,7 @@ ice-simplifier/
 ├── cmake/
 │   └── libigl.cmake      # libigl 取得スクリプト
 ├── main.cpp              # アプリケーション本体
+├── write_cfmap.h         # .cfmap 書き出し関数
 └── README.md             # このファイル
 ```
 
@@ -93,18 +97,75 @@ input.obj
     v2fs: 頂点→face-side (|V|×2)
     │
     ▼  coarsen_mesh()          ← F, G, l, A, v2fs をインプレース更新
-    BC:  削除頂点の重心座標 (n×3)
-    F2V: face→BC インデックス
+    BC:  fine頂点の重心座標 (|V_fine|×3, coarse頂点分は∞で初期化)
+    F2V: coarse面 → fine頂点インデックスリスト
     │
-    ▼  remove_unreferenced_intrinsic()
-    vIdx: coarse 頂点インデックス（元V空間）
+    ▼  remove_unreferenced_intrinsic()  ← F2V も含む完全版 overload
+    IMV:  fine頂点インデックス → coarse頂点インデックス（生存分のみ）
+    vIdx: coarse頂点インデックス（元V空間）
+    F, G, l, A, v2fs, F2V を新インデックスに更新
     │
     ▼  igl::slice(VO, vIdx) + F
     V_coarse: coarse 頂点座標
-    F_coarse: coarse 面リスト
+    F_coarse: coarse 面リスト（新インデックス）
     │
-    ▼  igl::write_triangle_mesh()
-    output.obj
+    ├─▶  igl::write_triangle_mesh()  →  output.obj
+    │
+    └─▶  write_cfmap()               →  output.cfmap
+```
+
+---
+
+## .cfmap フォーマット（Coarse-Fine Map）
+
+`output.obj` と同名で `.cfmap` ファイルが生成される。fine メッシュの各頂点が coarse メッシュのどの頂点・面に対応するかを記述する。
+
+### 構造
+
+```
+<n_fine> <n_coarse> <n_coarse_faces>
+<nearest_coarse_v> <coarse_face> <bc0> <bc1> <bc2>
+<nearest_coarse_v> <coarse_face> <bc0> <bc1> <bc2>
+...                                         （n_fine 行）
+```
+
+### 列の意味
+
+| 列 | 型 | 意味 |
+|----|----|------|
+| `nearest_coarse_v` | int | この fine 頂点の最近傍 coarse 頂点インデックス（LRA アンカー） |
+| `coarse_face` | int | BC が属する coarse 面インデックス。`-1` = この fine 頂点自身が coarse 頂点 |
+| `bc0 bc1 bc2` | float | barycentric 座標（和 ≈ 1.0） |
+
+### fine 頂点の位置復元
+
+```
+coarse_face == -1:
+    p = V_coarse[nearest_coarse_v]
+
+coarse_face >= 0:
+    p = bc0·V_coarse[F[coarse_face, 0]]
+      + bc1·V_coarse[F[coarse_face, 1]]
+      + bc2·V_coarse[F[coarse_face, 2]]
+```
+
+### 読み込み例（C++）
+
+```cpp
+struct FineVertCorr { int nearest_coarse, coarse_face; float bc[3]; };
+
+std::vector<FineVertCorr> load_cfmap(const std::string& path) {
+    FILE* fp = fopen(path.c_str(), "r");
+    int n_fine, n_coarse, n_cf;
+    fscanf(fp, "%d %d %d", &n_fine, &n_coarse, &n_cf);
+    std::vector<FineVertCorr> corr(n_fine);
+    for (int v = 0; v < n_fine; v++)
+        fscanf(fp, "%d %d %f %f %f",
+               &corr[v].nearest_coarse, &corr[v].coarse_face,
+               &corr[v].bc[0], &corr[v].bc[1], &corr[v].bc[2]);
+    fclose(fp);
+    return corr;
+}
 ```
 
 ---

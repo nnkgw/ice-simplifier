@@ -11,6 +11,8 @@
 #include <remove_unreferenced_intrinsic.h>
 #include <connected_components.h>
 
+#include "write_cfmap.h"
+
 #include <iostream>
 #include <map>
 #include <vector>
@@ -72,10 +74,10 @@ int main(int argc, char* argv[]) {
     std::cout << "Coarsening: removing " << total_removal << " vertices..." << std::endl;
     coarsen_mesh(total_removal, weight, F, G, l, A, v2fs, BC, F2V);
 
-    // Extract coarse mesh vertices/faces
+    // Extract coarse mesh vertices/faces (full overload: also reindexes F2V)
     std::map<int,int> IMV, IMF;
     VectorXi vIdx, fIdx;
-    remove_unreferenced_intrinsic(F, IMV, IMF, vIdx, fIdx);
+    remove_unreferenced_intrinsic(F, G, l, A, v2fs, F2V, IMV, IMF, vIdx, fIdx);
 
     MatrixXd V_coarse;
     igl::slice(VO, vIdx, 1, V_coarse);
@@ -90,6 +92,9 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     std::cout << "Written: " << output_path << std::endl;
+
+    if (!write_cfmap(output_path, (int)VO.rows(), V_coarse, F_coarse, BC, F2V, IMV))
+        return 1;
 
     return 0;
 }
