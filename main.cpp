@@ -12,6 +12,7 @@
 #include <connected_components.h>
 
 #include "write_cfmap.h"
+#include "write_geodesics.h"
 
 #include <iostream>
 #include <map>
@@ -94,6 +95,9 @@ int main(int argc, char* argv[]) {
     std::cout << "Written: " << output_path << std::endl;
 
     if (!write_cfmap(output_path, (int)VO.rows(), V_coarse, F_coarse, BC, F2V, IMV))
+        return 1;
+
+    if (!write_geodesics(output_path, VO, FO, vIdx))
         return 1;
 
     return 0;

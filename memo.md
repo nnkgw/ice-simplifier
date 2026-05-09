@@ -42,6 +42,54 @@ write_cfmap(output_path, (int)VO.rows(), V_coarse, F_coarse, BC, F2V, IMV);
 
 フォーマット詳細は README.md の「.cfmap フォーマット」節を参照。
 
+## 測地距離ファイル（write_geodesics.h）
+
+`write_geodesics()` が `.ccgeo` と `.cfgeo` を同時に書き出す。
+
+```cpp
+write_geodesics(output_path, VO, FO, vIdx);
+```
+
+- `VO`, `FO` — coarsen_mesh() 前の元 fine メッシュ（main.cpp で保持済み）
+- `vIdx` — remove_unreferenced_intrinsic() の出力（coarse 頂点の元インデックス）
+
+### アルゴリズム
+
+1. `build_fine_graph(VO, FO)` で辺隣接グラフを構築（ユークリッド辺長を重みに）
+2. 各 coarse 頂点 `ci`（元インデックス `vIdx(ci)`）を起点に Dijkstra を実行
+3. 同一 Dijkstra 結果から `.ccgeo` と `.cfgeo` の行を同時書き出し
+4. Dijkstra 実行回数 = n_coarse 回（計算量 O(n_coarse × E log V)）
+
+### バイナリフォーマット
+
+```
+[nrows : int32][ncols : int32]
+float32 row-major データ (nrows × ncols 個)
+```
+
+要素 (r, c) のバイトオフセット = `8 + (r * ncols + c) * 4`
+
+| ファイル | nrows | ncols | 意味 |
+|---------|-------|-------|------|
+| `.ccgeo` | n_coarse | n_coarse | coarse-coarse 全対測地距離 |
+| `.cfgeo` | n_coarse | n_fine | coarse 頂点→全 fine 頂点の測地距離 |
+
+### auto-lra での利用
+
+```cpp
+// アタッチメント fine 頂点 a の最近傍 coarse 頂点を .cfmap から取得
+int ac = cfmap[a].nearest_coarse;
+
+// .cfgeo から行 ac を読んで全 fine 頂点への距離を得る
+auto dists = load_cfgeo_row("output.cfgeo", ac);
+
+// LRA maxDist = dists[fine_v] * (1 + slackMul)
+```
+
+毎フレームの Dijkstra（known issue B2）が不要になる。
+
+---
+
 ## fine頂点の位置復元
 
 ```cpp

@@ -6,7 +6,7 @@
 
 # ice-simplifier
 
-`.obj` ファイルを読み込んで intrinsic simplification で粗視化し、coarse メッシュ（`.obj`）と coarse/fine 頂点対応ファイル（`.cfmap`）を書き出すコマンドラインアプリケーション。
+`.obj` ファイルを読み込んで intrinsic simplification で粗視化し、coarse メッシュ（`.obj`）、coarse/fine 頂点対応ファイル（`.cfmap`）、測地距離ファイル（`.ccgeo` / `.cfgeo`）を書き出すコマンドラインアプリケーション。
 
 [intrinsic-simplification](https://github.com/HTDerekLiu/intrinsic-simplification) のコアライブラリを使用。可視化ライブラリ（polyscope）を含まない最小構成。
 
@@ -61,9 +61,11 @@ Coarsening: removing 2730 vertices...
 Coarsened: 200 vertices, 396 faces
 Written: spot_coarse.obj
 Written: spot_coarse.cfmap
+Written: spot_coarse.ccgeo
+Written: spot_coarse.cfgeo
 ```
 
-`output.obj` と同名の `.cfmap` ファイルが常に生成される。
+`output.obj` と同名の `.cfmap` / `.ccgeo` / `.cfgeo` ファイルが常に生成される。
 
 ---
 
@@ -76,6 +78,7 @@ ice-simplifier/
 │   └── libigl.cmake      # libigl 取得スクリプト
 ├── main.cpp              # アプリケーション本体
 ├── write_cfmap.h         # .cfmap 書き出し関数
+├── write_geodesics.h     # .ccgeo / .cfgeo 書き出し関数
 └── README.md             # このファイル
 ```
 
@@ -111,7 +114,10 @@ input.obj
     │
     ├─▶  igl::write_triangle_mesh()  →  output.obj
     │
-    └─▶  write_cfmap()               →  output.cfmap
+    ├─▶  write_cfmap()               →  output.cfmap
+    │
+    └─▶  write_geodesics()           →  output.ccgeo
+                                        output.cfgeo
 ```
 
 ---
@@ -165,6 +171,64 @@ std::vector<FineVertCorr> load_cfmap(const std::string& path) {
                &corr[v].bc[0], &corr[v].bc[1], &corr[v].bc[2]);
     fclose(fp);
     return corr;
+}
+```
+
+---
+
+## 測地距離ファイルフォーマット（.ccgeo / .cfgeo）
+
+fine メッシュの辺グラフ（ユークリッド辺長をエッジ重みとした Dijkstra）で事前計算した測地距離をバイナリで書き出す。
+
+### 共通フォーマット
+
+```
+[nrows : int32][ncols : int32]
+[row0_col0 : float32][row0_col1 : float32] ... （nrows × ncols 個、行優先）
+```
+
+要素 `(r, c)` へのランダムアクセス：バイトオフセット = `8 + (r * ncols + c) * 4`
+
+### .ccgeo（Coarse-Coarse Geodesic）
+
+| 項目 | 値 |
+|------|----|
+| nrows | n_coarse |
+| ncols | n_coarse |
+| `[ci][cj]` | coarse 頂点 ci から coarse 頂点 cj への測地距離 |
+| ファイルサイズ | 8 + n_coarse² × 4 バイト |
+
+### .cfgeo（Coarse-Fine Geodesic）
+
+| 項目 | 値 |
+|------|----|
+| nrows | n_coarse |
+| ncols | n_fine |
+| `[ci][fi]` | coarse 頂点 ci から fine 頂点 fi への測地距離 |
+| ファイルサイズ | 8 + n_coarse × n_fine × 4 バイト |
+
+### 読み込み例（C++）
+
+```cpp
+// .ccgeo または .cfgeo を読み込んで (r, c) 要素をランダムアクセス
+float read_geodesic(FILE* fp, int ncols, int r, int c) {
+    float v;
+    fseek(fp, 8 + (r * ncols + c) * sizeof(float), SEEK_SET);
+    fread(&v, sizeof(float), 1, fp);
+    return v;
+}
+
+// LRA 生成例：アタッチメント coarse 頂点 ac の行を全て読む
+std::vector<float> load_cfgeo_row(const std::string& path, int ac) {
+    FILE* fp = fopen(path.c_str(), "rb");
+    int n_coarse, n_fine;
+    fread(&n_coarse, sizeof(int), 1, fp);
+    fread(&n_fine,   sizeof(int), 1, fp);
+    std::vector<float> row(n_fine);
+    fseek(fp, 8 + ac * n_fine * sizeof(float), SEEK_SET);
+    fread(row.data(), sizeof(float), n_fine, fp);
+    fclose(fp);
+    return row;  // row[fi] = dist(ac, fi)
 }
 ```
 
